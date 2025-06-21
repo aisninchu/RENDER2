@@ -1,53 +1,59 @@
 const fs = require("fs");
 
-const activeLoops = new Map();
+let activeLoops = {};
 
 module.exports = {
   config: {
     name: "ibmpel",
     version: "1.0",
-    author: "OpenAI & You",
+    author: "ChatGPT",
+    countDown: 5,
     role: 2,
-    description: "Loop inbox message from np2.txt",
+    description: {
+      en: "Send looping inbox messages from np2.txt",
+    },
     category: "inbox",
     guide: {
-      en: "/ibmpel [userID] → start\n/stopibmpel → stop"
+      en: "{pn} [userID] | {pn} stop",
     }
   },
 
   onStart: async function ({ message, args, api }) {
-    const userInput = args[0];
+    const userId = args[0];
 
-    if ((userInput && userInput.toLowerCase() === "stop") || message.body.toLowerCase().startsWith("/stopibmpel")) {
-      const interval = activeLoops.get("ibmpel");
-      if (interval) {
-        clearInterval(interval);
-        activeLoops.delete("ibmpel");
-        return message.reply("🛑 Inbox loop stopped.");
-      } else {
-        return message.reply("❌ No loop is running.");
-      }
+    if (!userId) {
+      return message.reply("❌ Please provide a user ID or `stop`.");
     }
 
-    const userID = userInput;
-    if (!userID) return message.reply("❌ Please provide a user ID.");
-
-    if (!fs.existsSync(__dirname + "/np2.txt")) {
-      return message.reply("❌ File 'np2.txt' not found in the same folder.");
+    if (userId.toLowerCase() === "stop") {
+      Object.keys(activeLoops).forEach(user => clearInterval(activeLoops[user]));
+      activeLoops = {};
+      return message.reply("🛑 Stopped all inbox loops.");
     }
 
-    const lines = fs.readFileSync(__dirname + "/np2.txt", "utf-8").split("\n").filter(Boolean);
-    if (lines.length === 0) return message.reply("❌ File 'np2.txt' is empty.");
+    if (activeLoops[userId]) {
+      return message.reply("⚠️ Already sending messages to this user.");
+    }
 
-    message.reply(`✅ Started sending inbox messages to ${userID}. Use /stopibmpel to stop.`);
+    let messages;
+    try {
+      const fileData = fs.readFileSync("np2.txt", "utf-8");
+      messages = fileData.split("\n").filter(line => line.trim() !== "");
+    } catch (err) {
+      return message.reply("❌ File `np2.txt` not found or unreadable.");
+    }
+
+    if (messages.length === 0) {
+      return message.reply("❌ `np2.txt` is empty.");
+    }
 
     let index = 0;
-    const loop = setInterval(() => {
-      if (index >= lines.length) index = 0;
-      api.sendMessage(lines[index], userID);
-      index++;
+    const interval = setInterval(() => {
+      api.sendMessage(messages[index], userId);
+      index = (index + 1) % messages.length;
     }, 15000);
 
-    activeLoops.set("ibmpel", loop);
+    activeLoops[userId] = interval;
+    message.reply(`✅ Now sending looping inbox messages to user ID: ${userId}`);
   }
 };

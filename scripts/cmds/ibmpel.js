@@ -16,9 +16,9 @@ module.exports = {
   },
 
   onStart: async function ({ message, args, api }) {
-    const command = args[0]?.toLowerCase();
+    const userInput = args[0];
 
-    if (command === "stop" || message.body.toLowerCase().startsWith("/stopibmpel")) {
+    if ((userInput && userInput.toLowerCase() === "stop") || message.body.toLowerCase().startsWith("/stopibmpel")) {
       const interval = activeLoops.get("ibmpel");
       if (interval) {
         clearInterval(interval);
@@ -29,7 +29,7 @@ module.exports = {
       }
     }
 
-    const userID = args[0];
+    const userID = userInput;
     if (!userID) return message.reply("❌ Please provide a user ID.");
 
     if (!fs.existsSync(__dirname + "/np2.txt")) {

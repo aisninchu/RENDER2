@@ -4,7 +4,7 @@ module.exports = {
     version: "1.0",
     author: "YourName",
     countDown: 5,
-    role: 2, // Only bot admin (role 2) can use
+    role: 2, // केवल Bot Admin ही इस कमांड को चला सकता है
     description: {
       vi: "Khoá tên nhóm theo tên chỉ định",
       en: "Lock group name to specified name"
@@ -16,27 +16,35 @@ module.exports = {
     }
   },
 
-  onStart: async function ({ message, args, threadsData, event }) {
+  onStart: async function ({ message, args, threadsData, event, api }) {
     const { threadID } = event;
 
+    // यदि user "off" लिखता है तो लॉक हटाओ
     if (args[0]?.toLowerCase() === "off") {
       await threadsData.set(threadID, {
         name: null,
         status: false
       }, "data.groupNameLock");
-      return message.reply("✅ Đã tắt khoá tên nhóm.");
+      return message.reply("✅ Group name lock हटा दिया गया है।");
     }
 
     const newName = args.join(" ");
     if (!newName)
-      return message.reply("❌ Vui lòng nhập tên nhóm cần khoá.");
+      return message.reply("❌ कृपया नया ग्रुप नाम डालें।");
 
+    // डेटा सेव करो
     await threadsData.set(threadID, {
       name: newName,
       status: true
     }, "data.groupNameLock");
 
-    return message.reply(`🔒 Đã khoá tên nhóm thành: "${newName}"`);
+    // अभी के अभी नाम बदलो
+    try {
+      await api.setTitle(newName, threadID);
+      return message.reply(`🔒 ग्रुप नाम लॉक कर दिया गया है: "${newName}"`);
+    } catch (err) {
+      return message.reply("❌ नाम बदलने में असमर्थ। कृपया सुनिश्चित करें कि बॉट के पास ग्रुप में एडमिन अधिकार हैं।");
+    }
   },
 
   onEvent: async function ({ event, threadsData, api, role }) {
@@ -51,6 +59,7 @@ module.exports = {
 
     const newName = logMessageData?.name || "";
 
+    // अगर नाम बदला गया है और बदलने वाला बॉट नहीं है और वो Bot Admin नहीं है
     if (newName !== data.name && api.getCurrentUserID() !== author && role < 2) {
       api.setTitle(data.name, threadID);
     }

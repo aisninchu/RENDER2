@@ -1,85 +1,56 @@
 const fs = require("fs");
 const path = require("path");
 
-const targetFile = path.join(__dirname, "target.txt");
-const msgFile = path.join(__dirname, "targetmsg.txt");
-
-function readTargetList() {
-  if (!fs.existsSync(targetFile)) return [];
-  return fs.readFileSync(targetFile, "utf-8")
-    .split("\n")
-    .map(x => x.trim())
-    .filter(x => x !== "");
-}
-
-function saveTargetList(list) {
-  fs.writeFileSync(targetFile, list.join("\n"), "utf-8");
-}
+const targetFile = path.join(__dirname, "..", "events", "target.txt");
 
 module.exports = {
   config: {
     name: "target",
-    version: "2.0",
-    author: "ChatGPT",
-    countDown: 5,
+    version: "1.0",
+    author: "OpenAI",
     role: 2,
     description: {
-      en: "Manage and auto-reply to target users"
+      en: "Add, remove, or list target UIDs to auto-reply"
     },
-    category: "admin",
+    category: "utility",
     guide: {
-      en: "{pn} add [uid] | {pn} remove [uid] | {pn} list"
+      en: "/target add <uid>\n/target remove <uid>\n/target list"
     }
   },
 
   onStart: async function ({ message, args }) {
-    const action = args[0]?.toLowerCase();
-    const uid = args[1];
+    if (!args[0]) return message.reply("❌ Usage: add/remove/list <uid>");
 
-    let list = readTargetList();
+    let targets = [];
+    if (fs.existsSync(targetFile)) {
+      targets = fs.readFileSync(targetFile, "utf-8").split("\n").filter(Boolean);
+    }
+
+    const action = args[0].toLowerCase();
 
     if (action === "add") {
-      if (!uid || isNaN(uid)) return message.reply("❌ Invalid UID.");
-      if (list.includes(uid)) return message.reply("⚠️ UID already in target list.");
-      list.push(uid);
-      saveTargetList(list);
+      const uid = args[1];
+      if (!uid) return message.reply("❌ Please provide a UID.");
+      if (targets.includes(uid)) return message.reply("⚠️ UID already exists.");
+      targets.push(uid);
+      fs.writeFileSync(targetFile, targets.join("\n"));
       return message.reply(`✅ UID ${uid} added to target list.`);
     }
 
     if (action === "remove") {
-      if (!uid) return message.reply("❌ Provide UID to remove.");
-      list = list.filter(x => x !== uid);
-      saveTargetList(list);
+      const uid = args[1];
+      if (!uid) return message.reply("❌ Please provide a UID.");
+      if (!targets.includes(uid)) return message.reply("⚠️ UID not found.");
+      targets = targets.filter(t => t !== uid);
+      fs.writeFileSync(targetFile, targets.join("\n"));
       return message.reply(`✅ UID ${uid} removed from target list.`);
     }
 
     if (action === "list") {
-      if (list.length === 0) return message.reply("📭 No target UIDs.");
-      return message.reply("🎯 Target UIDs:\n" + list.join("\n"));
+      if (targets.length === 0) return message.reply("📭 No targets added.");
+      return message.reply("🎯 Target UIDs:\n" + targets.join("\n"));
     }
 
-    return message.reply("❌ Invalid syntax. Use: add [uid], remove [uid], or list.");
-  },
-
-  onChat: async function ({ event, api }) {
-    const senderID = event.senderID;
-
-    const list = readTargetList();
-    if (!list.includes(senderID)) return;
-    if (!fs.existsSync(msgFile)) return;
-
-    const messages = fs.readFileSync(msgFile, "utf-8")
-      .split("\n")
-      .map(x => x.trim())
-      .filter(x => x !== "");
-
-    if (messages.length === 0) return;
-
-    await new Promise(res => setTimeout(res, 10000)); // 10s delay before first response
-
-    for (const msg of messages) {
-      await api.sendMessage(msg, senderID);
-      await new Promise(res => setTimeout(res, 5000)); // 5s delay between each
-    }
+    return message.reply("❌ Invalid action. Use add/remove/list.");
   }
 };

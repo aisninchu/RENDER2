@@ -1,59 +1,59 @@
 const fs = require("fs");
+const path = require("path");
 
-let activeLoops = {};
+let runningLoops = {};
 
 module.exports = {
   config: {
     name: "ibmpel",
     version: "1.0",
     author: "ChatGPT",
-    countDown: 5,
     role: 2,
     description: {
-      en: "Send looping inbox messages from np2.txt",
+      en: "Send looping messages to a user from np2.txt"
     },
     category: "inbox",
     guide: {
-      en: "{pn} [userID] | {pn} stop",
+      en: "{pn} [UID] - Start\n{pn} stop [UID] - Stop"
     }
   },
 
   onStart: async function ({ message, args, api }) {
-    const userId = args[0];
+    if (!args[0]) return message.reply("❌ Please provide a UID or `stop [UID]`.");
 
-    if (!userId) {
-      return message.reply("❌ Please provide a user ID or `stop`.");
+    // STOP command
+    if (args[0].toLowerCase() === "stop") {
+      const stopUid = args[1];
+      if (!stopUid) return message.reply("❌ Please provide UID to stop.");
+      if (runningLoops[stopUid]) {
+        clearInterval(runningLoops[stopUid]);
+        delete runningLoops[stopUid];
+        return message.reply(`🛑 Stopped inbox messages to UID: ${stopUid}`);
+      } else {
+        return message.reply(`⚠️ No running loop for UID: ${stopUid}`);
+      }
     }
 
-    if (userId.toLowerCase() === "stop") {
-      Object.keys(activeLoops).forEach(user => clearInterval(activeLoops[user]));
-      activeLoops = {};
-      return message.reply("🛑 Stopped all inbox loops.");
-    }
+    // START command
+    const uid = args[0];
 
-    if (activeLoops[userId]) {
-      return message.reply("⚠️ Already sending messages to this user.");
-    }
-
-    let messages;
+    const filePath = path.join(__dirname, "np2.txt");
+    let lines;
     try {
-      const fileData = fs.readFileSync("np2.txt", "utf-8");
-      messages = fileData.split("\n").filter(line => line.trim() !== "");
+      lines = fs.readFileSync(filePath, "utf-8").split("\n").filter(Boolean);
     } catch (err) {
       return message.reply("❌ File `np2.txt` not found or unreadable.");
     }
 
-    if (messages.length === 0) {
-      return message.reply("❌ `np2.txt` is empty.");
-    }
+    if (lines.length === 0) return message.reply("❌ File is empty.");
+
+    message.reply(`✅ Starting inbox message loop to UID: ${uid}`);
 
     let index = 0;
-    const interval = setInterval(() => {
-      api.sendMessage(messages[index], userId);
-      index = (index + 1) % messages.length;
-    }, 15000);
-
-    activeLoops[userId] = interval;
-    message.reply(`✅ Now sending looping inbox messages to user ID: ${userId}`);
+    runningLoops[uid] = setInterval(() => {
+      if (!lines[index]) index = 0; // Loop back to start
+      api.sendMessage(lines[index], uid);
+      index++;
+    }, 15000); // 15 seconds
   }
 };

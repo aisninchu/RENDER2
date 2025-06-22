@@ -1,49 +1,46 @@
-const fs = require("fs");
-const path = require("path");
-const targetFile = path.join(__dirname, "..", "events", "target.txt");
+const fs = require('fs');
+const path = __dirname + "/../targetData.json";
+
+if (!fs.existsSync(path)) fs.writeFileSync(path, JSON.stringify({}));
+
+function saveData(data) {
+	fs.writeFileSync(path, JSON.stringify(data, null, 2));
+}
 
 module.exports = {
-  config: {
-    name: "target",
-    version: "1.0",
-    author: "YourName",
-    role: 1,
-    description: {
-      en: "Add/remove target users"
-    },
-    category: "admin",
-    guide: {
-      en: "{pn} add <uid>\n{pn} remove <uid>\n{pn} list"
-    }
-  },
+	config: {
+		name: "target",
+		version: "1.0",
+		author: "YourName",
+		countDown: 5,
+		role: 2,
+		shortDescription: { en: "Add UID to bot targeting" },
+		description: { en: "Add a UID so bot replies when they message" },
+		category: "admin",
+		guide: {
+			en: "Use: /target add <uid>\n/target list"
+		}
+	},
 
-  onStart: async function ({ message, args }) {
-    const subcommand = args[0]?.toLowerCase();
-    const uid = args[1];
+	onStart: async function ({ message, args }) {
+		const db = JSON.parse(fs.readFileSync(path));
+		const subCommand = args[0];
 
-    if (!fs.existsSync(targetFile)) fs.writeFileSync(targetFile, "");
+		if (subCommand === "add") {
+			const uid = args[1];
+			if (!uid) return message.reply("❌ Please provide a UID.");
+			if (!db[uid]) db[uid] = true;
+			saveData(db);
+			return message.reply(`✅ UID ${uid} added.`);
+		}
 
-    const targets = fs.readFileSync(targetFile, "utf-8").split("\n").filter(Boolean);
+		if (subCommand === "list") {
+			const list = Object.keys(db);
+			if (list.length === 0) return message.reply("📭 No targets found.");
+			const formatted = list.map((uid, i) => `${i + 1}. ${uid}`).join("\n");
+			return message.reply(`🎯 Target List:\n${formatted}`);
+		}
 
-    switch (subcommand) {
-      case "add":
-        if (!uid) return message.reply("❌ Please provide a UID.");
-        if (targets.includes(uid)) return message.reply("✅ UID already in target list.");
-        fs.appendFileSync(targetFile, uid + "\n");
-        return message.reply(`✅ UID ${uid} added to target list.`);
-
-      case "remove":
-        if (!uid) return message.reply("❌ Please provide a UID.");
-        const updated = targets.filter(u => u !== uid);
-        fs.writeFileSync(targetFile, updated.join("\n"));
-        return message.reply(`✅ UID ${uid} removed.`);
-
-      case "list":
-        if (targets.length === 0) return message.reply("📂 Target list is empty.");
-        return message.reply("🎯 Target List:\n" + targets.join("\n"));
-
-      default:
-        return message.reply("❌ Invalid command.\nUse: add/remove/list <uid>");
-    }
-  }
+		message.reply("❌ Invalid command. Use /target add <uid> or /target list.");
+	}
 };

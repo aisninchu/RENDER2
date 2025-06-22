@@ -1,46 +1,88 @@
-const fs = require('fs');
-const path = __dirname + "/../targetData.json";
+const fs = require("fs");
+const path = require("path");
 
-if (!fs.existsSync(path)) fs.writeFileSync(path, JSON.stringify({}));
+let activeReplies = {};
 
-function saveData(data) {
-	fs.writeFileSync(path, JSON.stringify(data, null, 2));
+const targetFilePath = path.join(__dirname, "target.json");
+const messageFilePath = path.join(__dirname, "msg.txt");
+
+function readTargets() {
+  if (!fs.existsSync(targetFilePath)) return [];
+  return JSON.parse(fs.readFileSync(targetFilePath, "utf-8"));
+}
+
+function saveTargets(data) {
+  fs.writeFileSync(targetFilePath, JSON.stringify(data, null, 2));
 }
 
 module.exports = {
-	config: {
-		name: "target",
-		version: "1.0",
-		author: "YourName",
-		countDown: 5,
-		role: 2,
-		shortDescription: { en: "Add UID to bot targeting" },
-		description: { en: "Add a UID so bot replies when they message" },
-		category: "admin",
-		guide: {
-			en: "Use: /target add <uid>\n/target list"
-		}
-	},
+  config: {
+    name: "target",
+    version: "1.0",
+    author: "ChatGPT x You",
+    description: "Auto reply target users from msg.txt",
+    role: 2,
+    category: "auto"
+  },
 
-	onStart: async function ({ message, args }) {
-		const db = JSON.parse(fs.readFileSync(path));
-		const subCommand = args[0];
+  onStart: async function ({ message, event, args }) {
+    const [action, uid] = args;
 
-		if (subCommand === "add") {
-			const uid = args[1];
-			if (!uid) return message.reply("❌ Please provide a UID.");
-			if (!db[uid]) db[uid] = true;
-			saveData(db);
-			return message.reply(`✅ UID ${uid} added.`);
-		}
+    if (action === "on" && uid) {
+      let targets = readTargets();
+      if (!targets.includes(uid)) {
+        targets.push(uid);
+        saveTargets(targets);
+        return message.reply(`✅ UID ${uid} added to target list.`);
+      } else {
+        return message.reply(`⚠️ UID ${uid} is already in target list.`);
+      }
+    }
 
-		if (subCommand === "list") {
-			const list = Object.keys(db);
-			if (list.length === 0) return message.reply("📭 No targets found.");
-			const formatted = list.map((uid, i) => `${i + 1}. ${uid}`).join("\n");
-			return message.reply(`🎯 Target List:\n${formatted}`);
-		}
+    if (action === "off" && uid) {
+      let targets = readTargets();
+      if (targets.includes(uid)) {
+        targets = targets.filter(id => id !== uid);
+        saveTargets(targets);
+        return message.reply(`✅ UID ${uid} removed from target list.`);
+      } else {
+        return message.reply(`❌ UID ${uid} not found in list.`);
+      }
+    }
 
-		message.reply("❌ Invalid command. Use /target add <uid> or /target list.");
-	}
+    if (action === "list") {
+      const targets = readTargets();
+      if (targets.length === 0) return message.reply("📭 No target UIDs found.");
+      return message.reply("🎯 Target UIDs:\n" + targets.join("\n"));
+    }
+
+    return message.reply("📌 Use:\n- target on <uid>\n- target off <uid>\n- target list");
+  },
+
+  onChat: async function ({ event, message }) {
+    const { senderID, threadID } = event;
+
+    const targets = readTargets();
+    if (!targets.includes(senderID)) return;
+
+    if (activeReplies[threadID + senderID]) return; // already replying
+
+    if (!fs.existsSync(messageFilePath)) return;
+
+    const lines = fs.readFileSync(messageFilePath, "utf-8").split("\n").filter(l => l.trim() !== "");
+    if (lines.length === 0) return;
+
+    let index = 0;
+    activeReplies[threadID + senderID] = true;
+
+    const interval = setInterval(() => {
+      if (index >= lines.length) {
+        clearInterval(interval);
+        delete activeReplies[threadID + senderID];
+        return;
+      }
+      message.reply(lines[index]);
+      index++;
+    }, 8000); // 8 seconds delay
+  }
 };

@@ -1,88 +1,43 @@
 const fs = require("fs");
 const path = require("path");
 
-let activeReplies = {};
+const file = path.join(__dirname, "target.json");
 
-const targetFilePath = path.join(__dirname, "target.json");
-const messageFilePath = path.join(__dirname, "msg.txt");
-
-function readTargets() {
-  if (!fs.existsSync(targetFilePath)) return [];
-  return JSON.parse(fs.readFileSync(targetFilePath, "utf-8"));
+function getTargets() {
+  try {
+    const data = fs.readFileSync(file, "utf-8");
+    return JSON.parse(data || "[]");
+  } catch {
+    fs.writeFileSync(file, "[]");
+    return [];
+  }
 }
 
-function saveTargets(data) {
-  fs.writeFileSync(targetFilePath, JSON.stringify(data, null, 2));
+function saveTargets(list) {
+  fs.writeFileSync(file, JSON.stringify(list, null, 2));
 }
 
 module.exports = {
   config: {
     name: "target",
     version: "1.0",
-    author: "ChatGPT x You",
-    description: "Auto reply target users from msg.txt",
+    author: "OpenAI",
     role: 2,
-    category: "auto"
+    description: "Add/remove target UID to auto-reply"
   },
 
-  onStart: async function ({ message, event, args }) {
-    const [action, uid] = args;
+  onStart: async ({ args, message }) => {
+    const targets = getTargets();
+    const uid = args[0];
 
-    if (action === "on" && uid) {
-      let targets = readTargets();
-      if (!targets.includes(uid)) {
-        targets.push(uid);
-        saveTargets(targets);
-        return message.reply(`✅ UID ${uid} added to target list.`);
-      } else {
-        return message.reply(`⚠️ UID ${uid} is already in target list.`);
-      }
+    if (!uid || isNaN(uid)) return message.reply("❌ UID do bhai.");
+
+    if (targets.includes(uid)) {
+      return message.reply("⚠️ UID already added.");
     }
 
-    if (action === "off" && uid) {
-      let targets = readTargets();
-      if (targets.includes(uid)) {
-        targets = targets.filter(id => id !== uid);
-        saveTargets(targets);
-        return message.reply(`✅ UID ${uid} removed from target list.`);
-      } else {
-        return message.reply(`❌ UID ${uid} not found in list.`);
-      }
-    }
-
-    if (action === "list") {
-      const targets = readTargets();
-      if (targets.length === 0) return message.reply("📭 No target UIDs found.");
-      return message.reply("🎯 Target UIDs:\n" + targets.join("\n"));
-    }
-
-    return message.reply("📌 Use:\n- target on <uid>\n- target off <uid>\n- target list");
-  },
-
-  onChat: async function ({ event, message }) {
-    const { senderID, threadID } = event;
-
-    const targets = readTargets();
-    if (!targets.includes(senderID)) return;
-
-    if (activeReplies[threadID + senderID]) return; // already replying
-
-    if (!fs.existsSync(messageFilePath)) return;
-
-    const lines = fs.readFileSync(messageFilePath, "utf-8").split("\n").filter(l => l.trim() !== "");
-    if (lines.length === 0) return;
-
-    let index = 0;
-    activeReplies[threadID + senderID] = true;
-
-    const interval = setInterval(() => {
-      if (index >= lines.length) {
-        clearInterval(interval);
-        delete activeReplies[threadID + senderID];
-        return;
-      }
-      message.reply(lines[index]);
-      index++;
-    }, 8000); // 8 seconds delay
+    targets.push(uid);
+    saveTargets(targets);
+    message.reply(`✅ Target UID added: ${uid}`);
   }
 };

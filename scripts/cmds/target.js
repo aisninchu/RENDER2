@@ -1,66 +1,51 @@
+// cmds/target.js
 const fs = require("fs");
 const path = require("path");
 
-const targetFile = path.join(__dirname, "..", "..", "targetData.json");
+const filePath = path.join(__dirname, "targetData.json");
 
 function readTargets() {
-  if (!fs.existsSync(targetFile)) return [];
   try {
-    const data = fs.readFileSync(targetFile, "utf-8");
-    return JSON.parse(data);
-  } catch (err) {
-    return [];
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return {};
   }
 }
 
 function writeTargets(data) {
-  fs.writeFileSync(targetFile, JSON.stringify(data, null, 2), "utf-8");
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
 }
 
 module.exports = {
   config: {
     name: "target",
     version: "1.0",
-    author: "OpenAI",
-    role: 0,
-    shortDescription: "Add/remove targets and list them",
-    longDescription: "Allows you to add, remove or view target list",
-    category: "utility",
-    guide: {
-      en: "{pn} add <text> | {pn} remove <index> | {pn} list",
-    },
+    author: "Aryan",
+    category: "admin",
+    description: "Set custom reply for target user",
+    usage: "<@mention> <message>"
   },
 
-  onStart: async function ({ message, args }) {
-    const subCmd = args[0];
+  onCall: function ({ message, args, reply, mentions, event }) {
     const targets = readTargets();
+    const threadID = event.threadID;
 
-    switch (subCmd) {
-      case "add": {
-        const text = args.slice(1).join(" ");
-        if (!text) return message.reply("❌ Please provide text to add.");
-        targets.push(text);
-        writeTargets(targets);
-        return message.reply(`✅ Added: "${text}"`);
-      }
-
-      case "remove": {
-        const index = parseInt(args[1]);
-        if (isNaN(index) || index < 1 || index > targets.length)
-          return message.reply("❌ Invalid index.");
-        const removed = targets.splice(index - 1, 1);
-        writeTargets(targets);
-        return message.reply(`✅ Removed: "${removed[0]}"`);
-      }
-
-      case "list": {
-        if (targets.length === 0) return message.reply("📭 No targets found.");
-        const list = targets.map((item, i) => `${i + 1}. ${item}`).join("\n");
-        return message.reply(`📋 Target list:\n${list}`);
-      }
-
-      default:
-        return message.reply("❓ Usage: target add/remove/list");
+    if (!mentions || Object.keys(mentions).length === 0) {
+      return message.reply("Kise tag karu be?");
     }
-  },
+
+    const mentionID = Object.keys(mentions)[0];
+    const msg = args.slice(1).join(" ");
+
+    if (!msg) {
+      return message.reply("Reply message bhi toh de be?");
+    }
+
+    if (!targets[threadID]) targets[threadID] = {};
+    targets[threadID][mentionID] = msg;
+
+    writeTargets(targets);
+
+    reply(`Set reply for @${mentions[mentionID]}:\n"${msg}"`);
+  }
 };

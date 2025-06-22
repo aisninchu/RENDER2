@@ -5,8 +5,8 @@ const file = path.join(__dirname, "target.json");
 
 function getTargets() {
   try {
-    const data = fs.readFileSync(file, "utf-8");
-    return JSON.parse(data || "[]");
+    const d = fs.readFileSync(file, "utf-8");
+    return JSON.parse(d || "[]");
   } catch {
     fs.writeFileSync(file, "[]");
     return [];
@@ -21,23 +21,33 @@ module.exports = {
   config: {
     name: "target",
     version: "1.0",
-    author: "OpenAI",
-    role: 2,
-    description: "Add/remove target UID to auto-reply"
+    author: "ChatGPT",
+    role: 2
   },
-
-  onStart: async ({ args, message }) => {
-    const targets = getTargets();
-    const uid = args[0];
-
-    if (!uid || isNaN(uid)) return message.reply("❌ UID do bhai.");
-
-    if (targets.includes(uid)) {
-      return message.reply("⚠️ UID already added.");
+  onStart: async function ({ args, message }) {
+    const [cmd, uid] = args;
+    if (cmd === "on" && uid) {
+      const list = getTargets();
+      if (!list.includes(uid)) {
+        list.push(uid);
+        saveTargets(list);
+        return message.reply(`✅ UID ${uid} added.`);
+      }
+      return message.reply("⚠️ Already added.");
     }
-
-    targets.push(uid);
-    saveTargets(targets);
-    message.reply(`✅ Target UID added: ${uid}`);
+    if (cmd === "off" && uid) {
+      let list = getTargets();
+      if (list.includes(uid)) {
+        list = list.filter(i => i !== uid);
+        saveTargets(list);
+        return message.reply(`✅ UID ${uid} removed.`);
+      }
+      return message.reply("⚠️ Not in list.");
+    }
+    if (cmd === "list") {
+      const list = getTargets();
+      return message.reply("🎯 Targets:\n" + (list.join("\n") || "None"));
+    }
+    message.reply("Usage: target on|off|list <UID>");
   }
 };

@@ -8,20 +8,16 @@ let lastSent = {};
 
 function readTargets() {
   try {
-    const data = fs.readFileSync(dataPath, "utf8");
-    return JSON.parse(data);
-  } catch (err) {
-    console.error("Failed to read targetData.json", err);
+    return JSON.parse(fs.readFileSync(dataPath, "utf8"));
+  } catch {
     return [];
   }
 }
 
 function readMessages() {
   try {
-    const content = fs.readFileSync(msgPath, "utf8");
-    return content.split("\n").filter(line => line.trim() !== "");
-  } catch (err) {
-    console.error("Failed to read msg.txt", err);
+    return fs.readFileSync(msgPath, "utf8").split("\n").filter(m => m.trim() !== "");
+  } catch {
     return [];
   }
 }
@@ -30,32 +26,36 @@ module.exports = {
   config: {
     name: "targetMonitor",
     version: "1.0",
-    author: "you",
+    author: "YourName",
     category: "events"
   },
 
   onStart: async function ({ event, message }) {
-    console.log("✅ targetMonitor triggered. Sender:", event.senderID);
+    if (!event?.senderID || !event?.body) return;
 
     const targets = readTargets();
     const messages = readMessages();
+    const sender = event.senderID;
 
-    if (!event.senderID || !event.body) return;
+    if (!targets.includes(sender)) return;
 
-    if (targets.includes(event.senderID)) {
-      const now = Date.now();
-      if (!lastSent[event.senderID] || now - lastSent[event.senderID] > 8000) {
-        lastSent[event.senderID] = now;
+    const now = Date.now();
+    if (!lastSent[sender] || now - lastSent[sender] >= 8000) {
+      lastSent[sender] = now;
 
-        const randomMsg = messages[Math.floor(Math.random() * messages.length)];
-        message.reply({
+      const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+
+      try {
+        await message.reply({
           body: randomMsg,
-          mentions: [{
-            id: event.senderID,
-            tag: '@target'
-          }]
+          mentions: [{ id: sender, tag: "@" }]
         });
+        console.log(`[targetMonitor] ✅ Replied to ${sender}`);
+      } catch (err) {
+        console.log(`[targetMonitor] ❌ Failed to reply:`, err);
       }
+    } else {
+      console.log(`[targetMonitor] ⏳ Waiting to reply to ${sender}`);
     }
   }
 };

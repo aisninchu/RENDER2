@@ -1,76 +1,66 @@
 const fs = require("fs");
 const path = require("path");
 
-const dataPath = path.join(__dirname, "..", "..", "targetData.json");
-const msgPath = path.join(__dirname, "..", "..", "msg.txt");
+const targetFile = path.join(__dirname, "..", "..", "targetData.json");
 
 function readTargets() {
-  if (!fs.existsSync(dataPath)) return [];
+  if (!fs.existsSync(targetFile)) return [];
   try {
-    return JSON.parse(fs.readFileSync(dataPath, "utf-8"));
+    const data = fs.readFileSync(targetFile, "utf-8");
+    return JSON.parse(data);
   } catch (err) {
-    console.error("❌ Failed to parse targetData.json:", err);
     return [];
   }
 }
 
-function saveTargets(targets) {
-  fs.writeFileSync(dataPath, JSON.stringify(targets, null, 2));
+function writeTargets(data) {
+  fs.writeFileSync(targetFile, JSON.stringify(data, null, 2), "utf-8");
 }
 
 module.exports = {
   config: {
     name: "target",
     version: "1.0",
-    author: "ChatGPT",
-    role: 2,
-    category: "tools", // ✅ FIXED
-    description: "Add/remove UIDs for auto reply"
+    author: "OpenAI",
+    role: 0,
+    shortDescription: "Add/remove targets and list them",
+    longDescription: "Allows you to add, remove or view target list",
+    category: "utility",
+    guide: {
+      en: "{pn} add <text> | {pn} remove <index> | {pn} list",
+    },
   },
 
   onStart: async function ({ message, args }) {
-    if (!args[0]) return message.reply("⚠️ Use `target on UID` or `target off UID`");
-
-    const command = args[0].toLowerCase();
-    const uid = args[1];
-
-    if (!uid || isNaN(uid)) return message.reply("❌ Please provide a valid UID.");
-
+    const subCmd = args[0];
     const targets = readTargets();
 
-    if (command === "on") {
-      if (!targets.includes(uid)) {
-        targets.push(uid);
-        saveTargets(targets);
-        return message.reply(`✅ UID ${uid} added to target list.`);
-      } else {
-        return message.reply("⚠️ UID already in target list.");
+    switch (subCmd) {
+      case "add": {
+        const text = args.slice(1).join(" ");
+        if (!text) return message.reply("❌ Please provide text to add.");
+        targets.push(text);
+        writeTargets(targets);
+        return message.reply(`✅ Added: "${text}"`);
       }
-    }
 
-    if (command === "off") {
-      if (targets.includes(uid)) {
-        const updated = targets.filter(id => id !== uid);
-        saveTargets(updated);
-        return message.reply(`❌ UID ${uid} removed from target list.`);
-      } else {
-        return message.reply("⚠️ UID not found in target list.");
+      case "remove": {
+        const index = parseInt(args[1]);
+        if (isNaN(index) || index < 1 || index > targets.length)
+          return message.reply("❌ Invalid index.");
+        const removed = targets.splice(index - 1, 1);
+        writeTargets(targets);
+        return message.reply(`✅ Removed: "${removed[0]}"`);
       }
-    }
 
-    return message.reply("❓ Unknown command. Use `on` or `off`.");
+      case "list": {
+        if (targets.length === 0) return message.reply("📭 No targets found.");
+        const list = targets.map((item, i) => `${i + 1}. ${item}`).join("\n");
+        return message.reply(`📋 Target list:\n${list}`);
+      }
+
+      default:
+        return message.reply("❓ Usage: target add/remove/list");
+    }
   },
-
-  onChat: async function ({ event, message }) {
-    const targets = readTargets();
-    const senderID = event.senderID;
-
-    if (targets.includes(senderID)) {
-      if (!fs.existsSync(msgPath)) return;
-      const text = fs.readFileSync(msgPath, "utf-8").trim();
-      if (text) {
-        return message.reply(text);
-      }
-    }
-  }
 };

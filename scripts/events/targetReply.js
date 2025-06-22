@@ -1,39 +1,29 @@
+// events/targetReply.js
 const fs = require("fs");
 const path = require("path");
 
-const targetsPath = path.join(__dirname, "..", "..", "targetData.json");
-const msgPath = path.join(__dirname, "..", "..", "msg.txt");
+const filePath = path.join(__dirname, "../cmds/targetData.json");
 
 function readTargets() {
-  if (!fs.existsSync(targetsPath)) return [];
   try {
-    return JSON.parse(fs.readFileSync(targetsPath, "utf-8"));
-  } catch (err) {
-    console.error("❌ Error reading targetData.json:", err);
-    return [];
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return {};
   }
 }
 
 module.exports = {
   config: {
-    name: "targetReply",
-    version: "1.0",
-    author: "ChatGPT",
-    description: "Reply automatically to target UIDs",
-    category: "events" // must be in events folder
+    name: "targetReply"
   },
 
-  onEvent: async function ({ event, message }) {
-    const targets = readTargets();
+  onMessage: function ({ message, event, reply }) {
+    const threadID = event.threadID;
     const senderID = event.senderID;
+    const targets = readTargets();
 
-    if (!targets.includes(senderID)) return;
-
-    if (!fs.existsSync(msgPath)) return;
-
-    const replyMessage = fs.readFileSync(msgPath, "utf-8").trim();
-    if (replyMessage.length > 0) {
-      return message.reply(replyMessage);
+    if (targets[threadID] && targets[threadID][senderID]) {
+      reply(targets[threadID][senderID]);
     }
   }
 };
